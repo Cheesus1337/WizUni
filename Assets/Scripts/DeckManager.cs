@@ -1,13 +1,17 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Netcode;
 
 public class DeckManager : NetworkBehaviour
 {
-    // Diese Liste ist nur für den Server wichtig, um den Stapel zu verwalten
+    // Diese Liste ist nur fï¿½r den Server wichtig, um den Stapel zu verwalten
     public List<CardData> currentDeck = new List<CardData>();
 
     public GameObject cardPrefab; // WICHTIG: Dieses Prefab muss im NetworkManager registriert sein!
+    
+    // Cache for player hands to avoid repeated FindObjectsByType calls
+    private PlayerHand[] cachedPlayers;
 
     public override void OnNetworkSpawn()
     {
@@ -15,8 +19,53 @@ public class DeckManager : NetworkBehaviour
         if (IsServer)
         {
             GenerateDeck();
-          
+            
+            // Subscribe to network events to invalidate cache when players join/leave
+            if (NetworkManager.Singleton != null)
+            {
+                NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
+                NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+            }
         }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (IsServer && NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+        }
+    }
+
+    private void OnClientConnected(ulong clientId)
+    {
+        // Invalidate cache when a new player joins
+        cachedPlayers = null;
+    }
+
+    private void OnClientDisconnected(ulong clientId)
+    {
+        // Invalidate cache when a player leaves
+        cachedPlayers = null;
+    }
+
+    private bool IsPlayerCacheValid()
+    {
+        // Check if cache exists and all cached players are still valid (not null or destroyed)
+        if (cachedPlayers == null)
+        {
+            return false;
+        }
+        
+        foreach (PlayerHand player in cachedPlayers)
+        {
+            if (player == null || !player.IsSpawned)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void Update()
@@ -24,7 +73,7 @@ public class DeckManager : NetworkBehaviour
         // Nur der Server/Host darf das Spiel starten
         if (IsServer)
         {
-            // Wenn wir "Leertaste" drücken, werden Karten verteilt
+            // Wenn wir "Leertaste" drï¿½cken, werden Karten verteilt
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 DealCards();
@@ -46,13 +95,13 @@ public class DeckManager : NetworkBehaviour
             }
         }
 
-        // Wizards hinzufügen
+        // Wizards hinzufï¿½gen
         for (int i = 0; i < 4; i++)
         {
             currentDeck.Add(new CardData(CardColor.Special, CardValue.Wizard));
         }
 
-        // Narren hinzufügen
+        // Narren hinzufï¿½gen
         for (int i = 0; i < 4; i++)
         {
             currentDeck.Add(new CardData(CardColor.Special, CardValue.Jester));
@@ -64,28 +113,37 @@ public class DeckManager : NetworkBehaviour
 
     void DealCards()
     {
-        PlayerHand[] players = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None);
+        // Use cached players or find them if not cached, or if cache contains destroyed objects
+        if (cachedPlayers == null || !IsPlayerCacheValid())
+        {
+            // Filter to only include spawned network objects
+            cachedPlayers = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None)
+                .Where(p => p.IsSpawned)
+                .ToArray();
+        }
 
-        if (players.Length == 0)
+        if (cachedPlayers.Length == 0)
         {
             Debug.LogError("Keine Spieler gefunden! (Warten Sie ggf., bis Spieler verbunden sind, bevor Sie DealCards aufrufen)");
             return;
         }
 
-        Debug.Log("Verteile Karten an " + players.Length + " Spieler.");
+        Debug.Log("Verteile Karten an " + cachedPlayers.Length + " Spieler.");
 
         int cardsPerPlayer = 5;
 
-        foreach (PlayerHand player in players)
+        foreach (PlayerHand player in cachedPlayers)
         {
             for (int i = 0; i < cardsPerPlayer; i++)
             {
                 if (currentDeck.Count > 0)
                 {
-                    CardData cardToDeal = currentDeck[0];
-                    currentDeck.RemoveAt(0);
+                    // Remove from end for O(1) instead of O(n)
+                    int lastIndex = currentDeck.Count - 1;
+                    CardData cardToDeal = currentDeck[lastIndex];
+                    currentDeck.RemoveAt(lastIndex);
 
-                    // 1. Daten logisch hinzufügen (für Spielregeln)
+                    // 1. Daten logisch hinzufï¿½gen (fï¿½r Spielregeln)
                     // HINWEIS: 'player.handCards' muss eine NetworkList sein, damit es synchronisiert wird
                     player.handCards.Add(cardToDeal);
 

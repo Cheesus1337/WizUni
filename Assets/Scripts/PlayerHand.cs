@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
-using Random = UnityEngine.Random; // Eindeutigkeit für Random
+using Random = UnityEngine.Random; // Eindeutigkeit fï¿½r Random
 
 public class PlayerHand : NetworkBehaviour
 {
@@ -13,6 +13,12 @@ public class PlayerHand : NetworkBehaviour
 
     // Liste der aktuell angezeigten Karten-Objekte
     private List<GameObject> spawnedCards = new List<GameObject>();
+    
+    // Cache for CardDisplay components to avoid GetComponent calls in update loops
+    private List<CardDisplay> spawnedCardDisplays = new List<CardDisplay>();
+    
+    // Error message constant
+    private const string MISSING_DISPLAY_ERROR = "CardPrefab is missing CardDisplay component! Cannot display cards. Please fix the prefab.";
 
     private void Awake()
     {
@@ -22,7 +28,7 @@ public class PlayerHand : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        // --- ÄNDERUNG START ---
+        // --- ï¿½NDERUNG START ---
 
         // 1. Positionen: Nur der Server darf entscheiden, wer wo steht!
         // Wir nutzen NetworkTransform, damit das Ergebnis an alle gesendet wird.
@@ -44,13 +50,13 @@ public class PlayerHand : NetworkBehaviour
             }
         }
 
-        // 2. Farben (Lokal für die Optik)
-        if (IsOwner) GetComponent<Renderer>().material.color = Color.green; // Ich bin grün
+        // 2. Farben (Lokal fï¿½r die Optik)
+        if (IsOwner) GetComponent<Renderer>().material.color = Color.green; // Ich bin grï¿½n
         else GetComponent<Renderer>().material.color = Color.red;       // Gegner sind rot
 
-        // --- ÄNDERUNG ENDE ---
+        // --- ï¿½NDERUNG ENDE ---
 
-        // Abonnieren für Änderungen
+        // Abonnieren fï¿½r ï¿½nderungen
         handCards.OnListChanged += OnHandChanged;
 
         // Late-Joiner Check
@@ -72,63 +78,62 @@ public class PlayerHand : NetworkBehaviour
 
     void UpdateHandVisuals()
     {
-        // 1. Aufräumen: Alte Bilder löschen
-        foreach (GameObject card in spawnedCards)
-        {
-            if (card != null) Destroy(card);
-        }
-        spawnedCards.Clear();
-
-        // 2. Setup für die Schleife
         float spacing = 2.3f;
-        // Wir berechnen die Gesamtbreite der Hand
-        // (Anzahl Karten - 1) * Abstand
-        // Bei 5 Karten und Abstand 1.5 ist die Breite 6.0
         float totalWidth = (handCards.Count - 1) * spacing;
-
-
-        // Wir starten bei der Hälfte der Breite nach links verschoben
         float xOffset = -(totalWidth / 2f);
-        int index = 1;
 
-        // 3. Karten neu generieren
-        foreach (CardData data in handCards)
+        // Optimization: Reuse existing cards when possible, only create/destroy the difference
+        int targetCount = handCards.Count;
+
+        // Remove excess cards if we have too many
+        while (spawnedCards.Count > targetCount)
         {
+            int lastIndex = spawnedCards.Count - 1;
+            GameObject cardToRemove = spawnedCards[lastIndex];
+            spawnedCards.RemoveAt(lastIndex);
+            spawnedCardDisplays.RemoveAt(lastIndex);
+            if (cardToRemove != null) Destroy(cardToRemove);
+        }
+
+        // Add new cards if we need more
+        while (spawnedCards.Count < targetCount)
+        {
+            GameObject newCard = Instantiate(cardPrefab, transform.position, Quaternion.identity);
+            CardDisplay display = newCard.GetComponent<CardDisplay>();
+            if (display == null)
+            {
+                Debug.LogError(MISSING_DISPLAY_ERROR);
+                Destroy(newCard);
+                return; // Fail fast - cannot display cards without proper prefab
+            }
+            spawnedCards.Add(newCard);
+            spawnedCardDisplays.Add(display);
+        }
+
+        // Update all cards with current data and positions
+        for (int i = 0; i < handCards.Count; i++)
+        {
+            CardData data = handCards[i];
+            GameObject card = spawnedCards[i];
+            CardDisplay displayScript = spawnedCardDisplays[i];
+
             // Position relativ zum Spieler berechnen
-            Vector3 spawnPos = transform.position + new Vector3(xOffset, 2f, 0);
-
-            // Instanziieren (Lokal)
-            GameObject newCard = Instantiate(cardPrefab, spawnPos, Quaternion.identity);
-
-            // Debugging
-            Debug.Log($"Karte {index}: Farbe={data.color}, Wert={data.value}");
+            Vector3 targetPos = transform.position + new Vector3(xOffset, 2f, 0);
+            card.transform.position = targetPos;
 
             // Sichtbarkeits-Logik
             if (IsOwner)
             {
                 // Eigene Karten: Daten anzeigen
-                // Stelle sicher, dass SetCardData keine NullReference wirft!
-                var displayScript = newCard.GetComponent<CardDisplay>();
-                if (displayScript != null)
-                {
-                    displayScript.SetCardData(data);
-                }
+                displayScript.SetCardData(data);
             }
             else
             {
-                // Gegner-Karten: Rückseite
-                var displayScript = newCard.GetComponent<CardDisplay>();
-                if (displayScript != null)
-                {
-                    displayScript.ShowCardBack();
-                }
+                // Gegner-Karten: Rï¿½ckseite
+                displayScript.ShowCardBack();
             }
 
-            spawnedCards.Add(newCard);
-
-            // Abstände für die nächste Karte
             xOffset += spacing;
-            index++; // WICHTIG: Zähler erhöhen
         }
     }
 }
