@@ -51,7 +51,12 @@ public class DeckManager : NetworkBehaviour
 
     private bool IsPlayerCacheValid()
     {
-        // Check if all cached players are still valid (not null or destroyed)
+        // Check if cache exists and all cached players are still valid (not null or destroyed)
+        if (cachedPlayers == null)
+        {
+            return false;
+        }
+        
         foreach (PlayerHand player in cachedPlayers)
         {
             if (player == null)
