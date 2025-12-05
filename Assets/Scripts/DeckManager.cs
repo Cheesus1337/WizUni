@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Netcode;
 
 public class DeckManager : NetworkBehaviour
@@ -115,18 +116,10 @@ public class DeckManager : NetworkBehaviour
         // Use cached players or find them if not cached, or if cache contains destroyed objects
         if (cachedPlayers == null || !IsPlayerCacheValid())
         {
-            PlayerHand[] foundPlayers = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None);
-            
-            // Filter to only include valid network objects
-            List<PlayerHand> validPlayers = new List<PlayerHand>();
-            foreach (PlayerHand player in foundPlayers)
-            {
-                if (player != null && player.IsSpawned)
-                {
-                    validPlayers.Add(player);
-                }
-            }
-            cachedPlayers = validPlayers.ToArray();
+            // Filter to only include valid spawned network objects
+            cachedPlayers = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None)
+                .Where(p => p != null && p.IsSpawned)
+                .ToArray();
         }
 
         if (cachedPlayers.Length == 0)

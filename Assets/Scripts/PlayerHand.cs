@@ -99,9 +99,12 @@ public class PlayerHand : NetworkBehaviour
             CardDisplay display = newCard.GetComponent<CardDisplay>();
             if (display == null)
             {
-                Debug.LogError("CardPrefab is missing CardDisplay component! Destroying invalid card.");
+                Debug.LogError("CardPrefab is missing CardDisplay component! Cannot create cards.");
                 Destroy(newCard);
-                break; // Stop creating more cards if the prefab is invalid
+                // Stop trying to create cards if prefab is broken
+                // Adjust targetCount to match what we actually have
+                targetCount = spawnedCards.Count;
+                break;
             }
             spawnedCards.Add(newCard);
             spawnedCardDisplays.Add(display);
@@ -115,18 +118,25 @@ public class PlayerHand : NetworkBehaviour
             CardDisplay displayScript = spawnedCardDisplays[i];
 
             // Safety check: should not happen with the logic above, but guard against edge cases
-            if (card == null)
+            if (card == null || displayScript == null)
             {
 #if UNITY_EDITOR
                 Debug.LogWarning($"Card at index {i} is null, recreating...");
 #endif
+                if (card != null) Destroy(card); // Clean up if card exists but display is null
+                
                 card = Instantiate(cardPrefab, transform.position, Quaternion.identity);
                 displayScript = card.GetComponent<CardDisplay>();
                 if (displayScript == null)
                 {
                     Debug.LogError("CardPrefab is missing CardDisplay component! Cannot recreate card.");
                     Destroy(card);
-                    continue; // Skip this card if the prefab is invalid
+                    // Skip updating this card's visuals but don't leave null in arrays
+                    card = null;
+                    spawnedCards[i] = null;
+                    spawnedCardDisplays[i] = null;
+                    xOffset += spacing;
+                    continue;
                 }
                 spawnedCards[i] = card;
                 spawnedCardDisplays[i] = displayScript;
