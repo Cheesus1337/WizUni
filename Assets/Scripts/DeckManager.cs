@@ -116,9 +116,9 @@ public class DeckManager : NetworkBehaviour
         // Use cached players or find them if not cached, or if cache contains destroyed objects
         if (cachedPlayers == null || !IsPlayerCacheValid())
         {
-            // Filter to only include valid spawned network objects
+            // Filter to only include spawned network objects
             cachedPlayers = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None)
-                .Where(p => p != null && p.IsSpawned)
+                .Where(p => p.IsSpawned)
                 .ToArray();
         }
 

@@ -16,6 +16,9 @@ public class PlayerHand : NetworkBehaviour
     
     // Cache for CardDisplay components to avoid GetComponent calls in update loops
     private List<CardDisplay> spawnedCardDisplays = new List<CardDisplay>();
+    
+    // Error message constant
+    private const string MISSING_DISPLAY_ERROR = "CardPrefab is missing CardDisplay component! Cannot display cards. Please fix the prefab.";
 
     private void Awake()
     {
@@ -99,7 +102,7 @@ public class PlayerHand : NetworkBehaviour
             CardDisplay display = newCard.GetComponent<CardDisplay>();
             if (display == null)
             {
-                Debug.LogError("CardPrefab is missing CardDisplay component! Cannot display cards. Please fix the prefab.");
+                Debug.LogError(MISSING_DISPLAY_ERROR);
                 Destroy(newCard);
                 return; // Fail fast - cannot display cards without proper prefab
             }
@@ -114,43 +117,20 @@ public class PlayerHand : NetworkBehaviour
             GameObject card = spawnedCards[i];
             CardDisplay displayScript = spawnedCardDisplays[i];
 
-            // Safety check: should not happen with the logic above, but guard against edge cases
-            if (card == null || displayScript == null)
-            {
-#if UNITY_EDITOR
-                Debug.LogWarning($"Card at index {i} is null, recreating...");
-#endif
-                if (card != null) Destroy(card); // Clean up if card exists but display is null
-                
-                card = Instantiate(cardPrefab, transform.position, Quaternion.identity);
-                displayScript = card.GetComponent<CardDisplay>();
-                if (displayScript == null)
-                {
-                    Debug.LogError("CardPrefab is missing CardDisplay component! Cannot display cards. Please fix the prefab.");
-                    Destroy(card);
-                    return; // Fail fast - cannot continue without proper prefab
-                }
-                spawnedCards[i] = card;
-                spawnedCardDisplays[i] = displayScript;
-            }
-
             // Position relativ zum Spieler berechnen
             Vector3 targetPos = transform.position + new Vector3(xOffset, 2f, 0);
             card.transform.position = targetPos;
 
             // Sichtbarkeits-Logik
-            if (displayScript != null)
+            if (IsOwner)
             {
-                if (IsOwner)
-                {
-                    // Eigene Karten: Daten anzeigen
-                    displayScript.SetCardData(data);
-                }
-                else
-                {
-                    // Gegner-Karten: R�ckseite
-                    displayScript.ShowCardBack();
-                }
+                // Eigene Karten: Daten anzeigen
+                displayScript.SetCardData(data);
+            }
+            else
+            {
+                // Gegner-Karten: R�ckseite
+                displayScript.ShowCardBack();
             }
 
             xOffset += spacing;
