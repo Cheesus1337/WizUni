@@ -13,6 +13,9 @@ public class PlayerHand : NetworkBehaviour
 
     // Liste der aktuell angezeigten Karten-Objekte
     private List<GameObject> spawnedCards = new List<GameObject>();
+    
+    // Cache for CardDisplay components to avoid GetComponent calls in update loops
+    private List<CardDisplay> spawnedCardDisplays = new List<CardDisplay>();
 
     private void Awake()
     {
@@ -85,6 +88,7 @@ public class PlayerHand : NetworkBehaviour
             int lastIndex = spawnedCards.Count - 1;
             GameObject cardToRemove = spawnedCards[lastIndex];
             spawnedCards.RemoveAt(lastIndex);
+            spawnedCardDisplays.RemoveAt(lastIndex);
             if (cardToRemove != null) Destroy(cardToRemove);
         }
 
@@ -92,7 +96,9 @@ public class PlayerHand : NetworkBehaviour
         while (spawnedCards.Count < targetCount)
         {
             GameObject newCard = Instantiate(cardPrefab, transform.position, Quaternion.identity);
+            CardDisplay display = newCard.GetComponent<CardDisplay>();
             spawnedCards.Add(newCard);
+            spawnedCardDisplays.Add(display);
         }
 
         // Update all cards with current data and positions
@@ -100,6 +106,7 @@ public class PlayerHand : NetworkBehaviour
         {
             CardData data = handCards[i];
             GameObject card = spawnedCards[i];
+            CardDisplay displayScript = spawnedCardDisplays[i];
 
             // Safety check: should not happen with the logic above, but guard against edge cases
             if (card == null)
@@ -108,7 +115,9 @@ public class PlayerHand : NetworkBehaviour
                 Debug.LogWarning($"Card at index {i} is null, recreating...");
 #endif
                 card = Instantiate(cardPrefab, transform.position, Quaternion.identity);
+                displayScript = card.GetComponent<CardDisplay>();
                 spawnedCards[i] = card;
+                spawnedCardDisplays[i] = displayScript;
             }
 
             // Position relativ zum Spieler berechnen
@@ -116,7 +125,6 @@ public class PlayerHand : NetworkBehaviour
             card.transform.position = targetPos;
 
             // Sichtbarkeits-Logik
-            var displayScript = card.GetComponent<CardDisplay>();
             if (displayScript != null)
             {
                 if (IsOwner)
