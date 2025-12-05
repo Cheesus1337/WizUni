@@ -20,8 +20,11 @@ public class DeckManager : NetworkBehaviour
             GenerateDeck();
             
             // Subscribe to network events to invalidate cache when players join/leave
-            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+            if (NetworkManager.Singleton != null)
+            {
+                NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
+                NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+            }
         }
     }
 
@@ -44,6 +47,19 @@ public class DeckManager : NetworkBehaviour
     {
         // Invalidate cache when a player leaves
         cachedPlayers = null;
+    }
+
+    private bool IsPlayerCacheValid()
+    {
+        // Check if all cached players are still valid (not null or destroyed)
+        foreach (PlayerHand player in cachedPlayers)
+        {
+            if (player == null)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void Update()
@@ -91,8 +107,8 @@ public class DeckManager : NetworkBehaviour
 
     void DealCards()
     {
-        // Use cached players or find them if not cached
-        if (cachedPlayers == null)
+        // Use cached players or find them if not cached, or if cache contains destroyed objects
+        if (cachedPlayers == null || !IsPlayerCacheValid())
         {
             cachedPlayers = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None);
         }

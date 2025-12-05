@@ -104,7 +104,9 @@ public class PlayerHand : NetworkBehaviour
             // Safety check: should not happen with the logic above, but guard against edge cases
             if (card == null)
             {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.LogWarning($"Card at index {i} is null, recreating...");
+#endif
                 card = Instantiate(cardPrefab, transform.position, Quaternion.identity);
                 spawnedCards[i] = card;
             }
