@@ -59,7 +59,7 @@ public class DeckManager : NetworkBehaviour
         
         foreach (PlayerHand player in cachedPlayers)
         {
-            if (player == null)
+            if (player == null || !player.IsSpawned)
             {
                 return false;
             }

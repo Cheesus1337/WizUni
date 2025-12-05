@@ -99,7 +99,9 @@ public class PlayerHand : NetworkBehaviour
             CardDisplay display = newCard.GetComponent<CardDisplay>();
             if (display == null)
             {
-                Debug.LogError("CardPrefab is missing CardDisplay component!");
+                Debug.LogError("CardPrefab is missing CardDisplay component! Destroying invalid card.");
+                Destroy(newCard);
+                break; // Stop creating more cards if the prefab is invalid
             }
             spawnedCards.Add(newCard);
             spawnedCardDisplays.Add(display);
@@ -122,7 +124,9 @@ public class PlayerHand : NetworkBehaviour
                 displayScript = card.GetComponent<CardDisplay>();
                 if (displayScript == null)
                 {
-                    Debug.LogError("CardPrefab is missing CardDisplay component!");
+                    Debug.LogError("CardPrefab is missing CardDisplay component! Cannot recreate card.");
+                    Destroy(card);
+                    continue; // Skip this card if the prefab is invalid
                 }
                 spawnedCards[i] = card;
                 spawnedCardDisplays[i] = displayScript;
