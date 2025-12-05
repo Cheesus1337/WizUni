@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq; // WICHTIG: Für das Sortieren der Liste (OrderBy/Sort)
 using Unity.Netcode;
 using UnityEngine;
-using Random = UnityEngine.Random; // Eindeutigkeit für Random
 
 public class PlayerHand : NetworkBehaviour
 {
@@ -14,6 +14,10 @@ public class PlayerHand : NetworkBehaviour
     // Liste der aktuell angezeigten Karten-Objekte
     private List<GameObject> spawnedCards = new List<GameObject>();
 
+    // Einstellungen für den Tisch-Radius (Ellipse)
+    private float tableRadiusX = 6.0f; // Breite des Tisches
+    private float tableRadiusY = 3.5f; // Tiefe des Tisches
+
     private void Awake()
     {
         // Initialisierung der NetworkList
@@ -22,36 +26,23 @@ public class PlayerHand : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        // --- ÄNDERUNG START ---
+        // 1. Abonnieren für Änderungen an der Hand
+        handCards.OnListChanged += OnHandChanged;
 
-        // 1. Positionen: Nur der Server darf entscheiden, wer wo steht!
-        // Wir nutzen NetworkTransform, damit das Ergebnis an alle gesendet wird.
-        if (IsServer)
+        // 2. WICHTIG: Wenn JEMAND joint (auch ich selbst), Sitzordnung neu berechnen
+        // Wir hören auf den NetworkManager, um mitzubekommen, wenn sich die Spielerzahl ändert
+        if (NetworkManager.Singleton != null)
         {
-            // OwnerClientId 0 ist immer der Host.
-            // OwnerClientId 1, 2, etc. sind die Clients.
-
-            if (OwnerClientId == 0)
-            {
-                // Host steht links
-                transform.position = new Vector3(-5f, 0f, 0f);
-            }
-            else
-            {
-                // Client(s) stehen rechts (wir schieben jeden weiteren Client etwas weiter)
-                float xPos = 5f + (OwnerClientId * 2.0f);
-                transform.position = new Vector3(xPos, 0f, 0f);
-            }
+            NetworkManager.Singleton.OnClientConnectedCallback += OnPlayerCountChanged;
+            NetworkManager.Singleton.OnClientDisconnectCallback += OnPlayerCountChanged;
         }
 
-        // 2. Farben (Lokal für die Optik)
-        if (IsOwner) GetComponent<Renderer>().material.color = Color.green; // Ich bin grün
-        else GetComponent<Renderer>().material.color = Color.red;       // Gegner sind rot
+        // 3. Initial einmal berechnen (damit ich sofort richtig sitze)
+        UpdateTableLayout();
 
-        // --- ÄNDERUNG ENDE ---
-
-        // Abonnieren für Änderungen
-        handCards.OnListChanged += OnHandChanged;
+        // 4. Farben setzen
+        if (IsOwner) GetComponent<Renderer>().material.color = Color.green;
+        else GetComponent<Renderer>().material.color = Color.red;
 
         // Late-Joiner Check
         if (handCards.Count > 0)
@@ -62,7 +53,69 @@ public class PlayerHand : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        // Sauber abmelden
         handCards.OnListChanged -= OnHandChanged;
+
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnPlayerCountChanged;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnPlayerCountChanged;
+        }
+    }
+
+    // Wird aufgerufen, wenn ein Spieler joint oder leaved
+    private void OnPlayerCountChanged(ulong clientId)
+    {
+        // Layout neu berechnen, da sich die Anzahl der Spieler geändert hat
+        UpdateTableLayout();
+    }
+
+    // --- NEUE LOGIK: Dynamische Sitzordnung ---
+    public void UpdateTableLayout()
+    {
+        // 1. Alle Spieler-Objekte in der Szene finden
+        List<PlayerHand> allPlayers = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None).ToList();
+
+        // 2. Sortieren nach ID, damit die Reihenfolge bei allen Clients gleich ist
+        allPlayers.Sort((p1, p2) => p1.OwnerClientId.CompareTo(p2.OwnerClientId));
+
+        // 3. Meinen eigenen Index in dieser Liste finden (wer bin "ICH"?)
+        ulong myId = NetworkManager.Singleton.LocalClientId;
+        int myIndex = allPlayers.FindIndex(p => p.OwnerClientId == myId);
+
+        // Falls wir noch nicht fertig geladen sind, abbrechen
+        if (myIndex == -1) return;
+
+        int totalPlayers = allPlayers.Count;
+
+        // 4. Positionen berechnen für ALLE Spieler (aus meiner Sicht)
+        for (int i = 0; i < totalPlayers; i++)
+        {
+            PlayerHand player = allPlayers[i];
+
+            // RELATIVE POSITION:
+            // Wir "drehen" den Tisch so, dass 'myIndex' immer auf Position 0 landet.
+            // Formel: (SpielerIndex - MeinIndex + Anzahl) % Anzahl
+            int relativeSeat = (i - myIndex + totalPlayers) % totalPlayers;
+
+            // Sitz 0 ist Unten (-90 Grad)
+            // Wir verteilen die anderen im Kreis (360 / Anzahl)
+            float angleDeg = -90f - (relativeSeat * (360f / totalPlayers));
+
+            // Umrechnung in Bogenmaß
+            float angleRad = angleDeg * Mathf.Deg2Rad;
+
+            // Position auf einer Ellipse
+            float x = Mathf.Cos(angleRad) * tableRadiusX;
+            float y = Mathf.Sin(angleRad) * tableRadiusY;
+
+            // Position zuweisen
+            player.transform.position = new Vector3(x, y, 0);
+
+            // Da sich die Position geändert hat, müssen wir eventuell die Karten neu ausrichten
+            // (z.B. damit sie nicht aus dem Bild ragen, wenn der Spieler oben ist)
+            player.UpdateHandVisuals();
+        }
     }
 
     private void OnHandChanged(NetworkListEvent<CardData> changeEvent)
@@ -70,130 +123,104 @@ public class PlayerHand : NetworkBehaviour
         UpdateHandVisuals();
     }
 
-    void UpdateHandVisuals()
+    // Sichtbarkeit auf public geändert, damit UpdateTableLayout darauf zugreifen kann
+    public void UpdateHandVisuals()
     {
-        // 1. Aufräumen: Alte Bilder löschen
+        // 1. Aufräumen
         foreach (GameObject card in spawnedCards)
         {
             if (card != null) Destroy(card);
         }
         spawnedCards.Clear();
 
-        // 2. Setup für die Schleife
-        float spacing = 2.3f; // Dein eingestellter Abstand
-
-        // Berechnung der Gesamtbreite für die Zentrierung
-        // Bei 0 oder 1 Karten verhindern wir negative Werte/Fehler
+        // 2. Setup
+        float spacing = 2.3f;
         float totalWidth = 0f;
         if (handCards.Count > 1)
         {
             totalWidth = (handCards.Count - 1) * spacing;
         }
 
-        // Wir starten bei der Hälfte der Breite nach links verschoben
         float xOffset = -(totalWidth / 2f);
 
         // 3. Karten neu generieren
-        // WICHTIG: Wir nutzen jetzt eine for-Schleife statt foreach!
-        // Das gibt uns den Index 'i' (0, 1, 2...), den wir für die Logik brauchen.
         for (int i = 0; i < handCards.Count; i++)
         {
-            CardData data = handCards[i]; // Daten für die aktuelle Karte holen
+            CardData data = handCards[i];
+
+            // --- ÄNDERUNG: Dynamischer Y-Offset ---
+            // Wenn der Spieler UNTEN ist (Y < 0), Karten ÜBER ihm (+2).
+            // Wenn der Spieler OBEN ist (Y > 0), Karten UNTER ihm (-2).
+            float yOffset = (transform.position.y < 0) ? 2f : -2f;
 
             // Position relativ zum Spieler berechnen
-            Vector3 spawnPos = transform.position + new Vector3(xOffset, 2f, 0);
+            Vector3 spawnPos = transform.position + new Vector3(xOffset, yOffset, 0);
 
-            // Instanziieren (Lokal)
             GameObject newCard = Instantiate(cardPrefab, spawnPos, Quaternion.identity);
 
-            // Debugging (Index + 1 für die Anzeige, damit es bei "Karte 1" losgeht)
-            Debug.Log($"Karte {i + 1}: Farbe={data.color}, Wert={data.value}");
+            // Debugging
+            // Debug.Log($"Karte {i + 1}: Farbe={data.color}, Wert={data.value}");
 
-            // --- HIER IST DIE WICHTIGE ÄNDERUNG (TEIL A) ---
-            // Wir holen uns das Skript der Karte...
+            // Logik für Anzeige & Index
             var displayScript = newCard.GetComponent<CardDisplay>();
 
             if (displayScript != null)
             {
-                // ... und sagen der Karte, an welcher Stelle sie liegt.
-                // Das brauchen wir gleich für den Klick (ServerRpc)!
                 displayScript.handIndex = i;
 
-                // Sichtbarkeits-Logik
                 if (IsOwner)
                 {
-                    // Eigene Karten: Daten anzeigen
                     displayScript.SetCardData(data);
                 }
                 else
                 {
-                    // Gegner-Karten: Rückseite
                     displayScript.ShowCardBack();
                 }
             }
-            // ------------------------------------------------
 
             spawnedCards.Add(newCard);
-
-            // Abstände für die nächste Karte addieren
             xOffset += spacing;
         }
     }
 
     private void Update()
     {
-        // Nur wenn ich der Besitzer bin, darf ich klicken
         if (!IsOwner) return;
 
-        if (Input.GetMouseButtonDown(0)) // Linksklick
+        if (Input.GetMouseButtonDown(0))
         {
-            // Raycast von der Mausposition in die Welt (für 2D/3D)
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
 
-            // Für 3D Collider (nutzt du 2D oder 3D Collider auf den Karten?)
             if (Physics.Raycast(ray, out hit))
             {
-                // Prüfen, ob wir eine Karte getroffen haben
                 CardDisplay card = hit.collider.GetComponent<CardDisplay>();
                 if (card != null)
                 {
-                    Debug.Log("Karte angeklickt: " + card.GetComponent<CardDisplay>().valueText.text);
+                    // Debug.Log("Karte angeklickt: " + card.GetComponent<CardDisplay>().valueText.text);
                     PlayCardServerRpc(card.handIndex);
-                    // Hier kommt später die Logik zum Ausspielen hin
                 }
             }
-
-            // Falls du 2D Collider nutzt (BoxCollider2D), brauchst du diesen Code stattdessen:
-            /*
-            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            RaycastHit2D hit2D = Physics2D.Raycast(mousePos, Vector2.zero);
-            if (hit2D.collider != null)
-            {
-                 CardDisplay card = hit2D.collider.GetComponent<CardDisplay>();
-                 if (card != null) Debug.Log("Karte angeklickt!");
-            }
-            */
         }
     }
 
     [ServerRpc]
     void PlayCardServerRpc(int index)
     {
-        // Sicherheits-Check: Ist der Index gültig?
         if (index < 0 || index >= handCards.Count) return;
 
-        // Logik: Karte holen
         CardData playedCard = handCards[index];
-        Debug.Log($"Server: Spieler {OwnerClientId} spielt Karte {playedCard.color} {playedCard.value}");
+        // Debug.Log($"Server: Spieler {OwnerClientId} spielt Karte {playedCard.color} {playedCard.value}");
 
-        // 1. Karte aus der Hand entfernen
-        // Da 'handCards' eine NetworkList ist, wird das Löschen AUTOMATISCH
-        // an alle Clients gesendet! Die Hand wird bei allen neu gezeichnet.
         handCards.RemoveAt(index);
 
-        // 2. TODO: Karte auf den Tisch legen (Machen wir im nächsten Schritt)
-        // DeckManager.Instance.AddPlayedCard(playedCard);
+        if (TableManager.Instance != null)
+        {
+            TableManager.Instance.AddCard(playedCard);
+        }
+        else
+        {
+            Debug.LogError("TableManager nicht gefunden! Hast du ihn in die Szene gelegt?");
+        }
     }
-
 }

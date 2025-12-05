@@ -30,6 +30,8 @@ public class DeckManager : NetworkBehaviour
                 DealCards();
             }
         }
+
+
     }
 
     void GenerateDeck()
@@ -95,27 +97,6 @@ public class DeckManager : NetworkBehaviour
                  //   SpawnCardVisual(cardToDeal, spawnPos);
                 }
             }
-        }
-    }
-
-    // Diese Funktion spawnt das echte GameObject im Netzwerk
-    void SpawnCardVisual(CardData data, Vector3 pos)
-    {
-        // A) Instanziieren (passiert erst nur auf dem Server)
-        GameObject newCard = Instantiate(cardPrefab, pos, Quaternion.identity);
-
-        // B) Das NetworkObject holen
-        NetworkObject netObj = newCard.GetComponent<NetworkObject>();
-
-        // C) WICHTIG: Spawn aufrufen! Damit wissen alle Clients: "Hier ist ein neues Objekt!"
-        netObj.Spawn();
-
-        // D) Daten setzen
-        // Achtung: Das funktioniert nur, wenn "CardDisplay" auch ein NetworkBehaviour ist 
-        // und netCardData eine NetworkVariable ist.
-        if (newCard.TryGetComponent(out CardDisplay display))
-        {
-            display.netCardData.Value = data;
         }
     }
 
