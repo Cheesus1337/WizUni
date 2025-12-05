@@ -78,7 +78,6 @@ public class PlayerHand : NetworkBehaviour
 
         // Optimization: Reuse existing cards when possible, only create/destroy the difference
         int targetCount = handCards.Count;
-        int currentCount = spawnedCards.Count;
 
         // Remove excess cards if we have too many
         while (spawnedCards.Count > targetCount)

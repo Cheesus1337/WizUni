@@ -92,7 +92,7 @@ public class DeckManager : NetworkBehaviour
     void DealCards()
     {
         // Use cached players or find them if not cached
-        if (cachedPlayers == null || cachedPlayers.Length == 0)
+        if (cachedPlayers == null)
         {
             cachedPlayers = FindObjectsByType<PlayerHand>(FindObjectsSortMode.None);
         }
