@@ -18,8 +18,32 @@ public class DeckManager : NetworkBehaviour
         if (IsServer)
         {
             GenerateDeck();
-          
+            
+            // Subscribe to network events to invalidate cache when players join/leave
+            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (IsServer && NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+        }
+    }
+
+    private void OnClientConnected(ulong clientId)
+    {
+        // Invalidate cache when a new player joins
+        cachedPlayers = null;
+    }
+
+    private void OnClientDisconnected(ulong clientId)
+    {
+        // Invalidate cache when a player leaves
+        cachedPlayers = null;
     }
 
     private void Update()

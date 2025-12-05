@@ -102,7 +102,13 @@ public class PlayerHand : NetworkBehaviour
             CardData data = handCards[i];
             GameObject card = spawnedCards[i];
 
-            if (card == null) continue;
+            // Safety check: should not happen with the logic above, but guard against edge cases
+            if (card == null)
+            {
+                Debug.LogWarning($"Card at index {i} is null, recreating...");
+                card = Instantiate(cardPrefab, transform.position, Quaternion.identity);
+                spawnedCards[i] = card;
+            }
 
             // Position relativ zum Spieler berechnen
             Vector3 targetPos = transform.position + new Vector3(xOffset, 2f, 0);
