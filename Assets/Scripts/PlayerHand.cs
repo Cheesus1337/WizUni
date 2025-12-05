@@ -99,12 +99,9 @@ public class PlayerHand : NetworkBehaviour
             CardDisplay display = newCard.GetComponent<CardDisplay>();
             if (display == null)
             {
-                Debug.LogError("CardPrefab is missing CardDisplay component! Cannot create cards.");
+                Debug.LogError("CardPrefab is missing CardDisplay component! Cannot display cards. Please fix the prefab.");
                 Destroy(newCard);
-                // Stop trying to create cards if prefab is broken
-                // Adjust targetCount to match what we actually have
-                targetCount = spawnedCards.Count;
-                break;
+                return; // Fail fast - cannot display cards without proper prefab
             }
             spawnedCards.Add(newCard);
             spawnedCardDisplays.Add(display);
@@ -129,14 +126,9 @@ public class PlayerHand : NetworkBehaviour
                 displayScript = card.GetComponent<CardDisplay>();
                 if (displayScript == null)
                 {
-                    Debug.LogError("CardPrefab is missing CardDisplay component! Cannot recreate card.");
+                    Debug.LogError("CardPrefab is missing CardDisplay component! Cannot display cards. Please fix the prefab.");
                     Destroy(card);
-                    // Skip updating this card's visuals but don't leave null in arrays
-                    card = null;
-                    spawnedCards[i] = null;
-                    spawnedCardDisplays[i] = null;
-                    xOffset += spacing;
-                    continue;
+                    return; // Fail fast - cannot continue without proper prefab
                 }
                 spawnedCards[i] = card;
                 spawnedCardDisplays[i] = displayScript;
