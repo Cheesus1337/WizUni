@@ -97,6 +97,10 @@ public class PlayerHand : NetworkBehaviour
         {
             GameObject newCard = Instantiate(cardPrefab, transform.position, Quaternion.identity);
             CardDisplay display = newCard.GetComponent<CardDisplay>();
+            if (display == null)
+            {
+                Debug.LogError("CardPrefab is missing CardDisplay component!");
+            }
             spawnedCards.Add(newCard);
             spawnedCardDisplays.Add(display);
         }
@@ -116,6 +120,10 @@ public class PlayerHand : NetworkBehaviour
 #endif
                 card = Instantiate(cardPrefab, transform.position, Quaternion.identity);
                 displayScript = card.GetComponent<CardDisplay>();
+                if (displayScript == null)
+                {
+                    Debug.LogError("CardPrefab is missing CardDisplay component!");
+                }
                 spawnedCards[i] = card;
                 spawnedCardDisplays[i] = displayScript;
             }
