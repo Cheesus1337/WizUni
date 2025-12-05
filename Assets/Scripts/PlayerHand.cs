@@ -80,55 +80,120 @@ public class PlayerHand : NetworkBehaviour
         spawnedCards.Clear();
 
         // 2. Setup für die Schleife
-        float spacing = 2.3f;
-        // Wir berechnen die Gesamtbreite der Hand
-        // (Anzahl Karten - 1) * Abstand
-        // Bei 5 Karten und Abstand 1.5 ist die Breite 6.0
-        float totalWidth = (handCards.Count - 1) * spacing;
+        float spacing = 2.3f; // Dein eingestellter Abstand
 
+        // Berechnung der Gesamtbreite für die Zentrierung
+        // Bei 0 oder 1 Karten verhindern wir negative Werte/Fehler
+        float totalWidth = 0f;
+        if (handCards.Count > 1)
+        {
+            totalWidth = (handCards.Count - 1) * spacing;
+        }
 
         // Wir starten bei der Hälfte der Breite nach links verschoben
         float xOffset = -(totalWidth / 2f);
-        int index = 1;
 
         // 3. Karten neu generieren
-        foreach (CardData data in handCards)
+        // WICHTIG: Wir nutzen jetzt eine for-Schleife statt foreach!
+        // Das gibt uns den Index 'i' (0, 1, 2...), den wir für die Logik brauchen.
+        for (int i = 0; i < handCards.Count; i++)
         {
+            CardData data = handCards[i]; // Daten für die aktuelle Karte holen
+
             // Position relativ zum Spieler berechnen
             Vector3 spawnPos = transform.position + new Vector3(xOffset, 2f, 0);
 
             // Instanziieren (Lokal)
             GameObject newCard = Instantiate(cardPrefab, spawnPos, Quaternion.identity);
 
-            // Debugging
-            Debug.Log($"Karte {index}: Farbe={data.color}, Wert={data.value}");
+            // Debugging (Index + 1 für die Anzeige, damit es bei "Karte 1" losgeht)
+            Debug.Log($"Karte {i + 1}: Farbe={data.color}, Wert={data.value}");
 
-            // Sichtbarkeits-Logik
-            if (IsOwner)
+            // --- HIER IST DIE WICHTIGE ÄNDERUNG (TEIL A) ---
+            // Wir holen uns das Skript der Karte...
+            var displayScript = newCard.GetComponent<CardDisplay>();
+
+            if (displayScript != null)
             {
-                // Eigene Karten: Daten anzeigen
-                // Stelle sicher, dass SetCardData keine NullReference wirft!
-                var displayScript = newCard.GetComponent<CardDisplay>();
-                if (displayScript != null)
+                // ... und sagen der Karte, an welcher Stelle sie liegt.
+                // Das brauchen wir gleich für den Klick (ServerRpc)!
+                displayScript.handIndex = i;
+
+                // Sichtbarkeits-Logik
+                if (IsOwner)
                 {
+                    // Eigene Karten: Daten anzeigen
                     displayScript.SetCardData(data);
                 }
-            }
-            else
-            {
-                // Gegner-Karten: Rückseite
-                var displayScript = newCard.GetComponent<CardDisplay>();
-                if (displayScript != null)
+                else
                 {
+                    // Gegner-Karten: Rückseite
                     displayScript.ShowCardBack();
                 }
             }
+            // ------------------------------------------------
 
             spawnedCards.Add(newCard);
 
-            // Abstände für die nächste Karte
+            // Abstände für die nächste Karte addieren
             xOffset += spacing;
-            index++; // WICHTIG: Zähler erhöhen
         }
     }
+
+    private void Update()
+    {
+        // Nur wenn ich der Besitzer bin, darf ich klicken
+        if (!IsOwner) return;
+
+        if (Input.GetMouseButtonDown(0)) // Linksklick
+        {
+            // Raycast von der Mausposition in die Welt (für 2D/3D)
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            RaycastHit hit;
+
+            // Für 3D Collider (nutzt du 2D oder 3D Collider auf den Karten?)
+            if (Physics.Raycast(ray, out hit))
+            {
+                // Prüfen, ob wir eine Karte getroffen haben
+                CardDisplay card = hit.collider.GetComponent<CardDisplay>();
+                if (card != null)
+                {
+                    Debug.Log("Karte angeklickt: " + card.GetComponent<CardDisplay>().valueText.text);
+                    PlayCardServerRpc(card.handIndex);
+                    // Hier kommt später die Logik zum Ausspielen hin
+                }
+            }
+
+            // Falls du 2D Collider nutzt (BoxCollider2D), brauchst du diesen Code stattdessen:
+            /*
+            Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            RaycastHit2D hit2D = Physics2D.Raycast(mousePos, Vector2.zero);
+            if (hit2D.collider != null)
+            {
+                 CardDisplay card = hit2D.collider.GetComponent<CardDisplay>();
+                 if (card != null) Debug.Log("Karte angeklickt!");
+            }
+            */
+        }
+    }
+
+    [ServerRpc]
+    void PlayCardServerRpc(int index)
+    {
+        // Sicherheits-Check: Ist der Index gültig?
+        if (index < 0 || index >= handCards.Count) return;
+
+        // Logik: Karte holen
+        CardData playedCard = handCards[index];
+        Debug.Log($"Server: Spieler {OwnerClientId} spielt Karte {playedCard.color} {playedCard.value}");
+
+        // 1. Karte aus der Hand entfernen
+        // Da 'handCards' eine NetworkList ist, wird das Löschen AUTOMATISCH
+        // an alle Clients gesendet! Die Hand wird bei allen neu gezeichnet.
+        handCards.RemoveAt(index);
+
+        // 2. TODO: Karte auf den Tisch legen (Machen wir im nächsten Schritt)
+        // DeckManager.Instance.AddPlayedCard(playedCard);
+    }
+
 }

@@ -1,78 +1,59 @@
 using UnityEngine;
 using TMPro;
-using Unity.Netcode; // Wichtig!
+// Wir brauchen hier KEIN Unity.Netcode mehr, da dieses Skript nur Optik ist!
 
-// ÄNDERUNG: Wir erben von NetworkBehaviour, nicht mehr MonoBehaviour
-public class CardDisplay : NetworkBehaviour
+public class CardDisplay : MonoBehaviour
 {
     public SpriteRenderer backgroundRenderer;
     public TMP_Text valueText;
-    public NetworkVariable<CardData> netCardData;
+    public int handIndex; // Index der Karte in der Hand (für spätere Erweiterungen)
 
-    // Diese Funktion wird automatisch aufgerufen, wenn das Objekt im Netzwerk erscheint
-    public override void OnNetworkSpawn()
+    // Diese Variable speichert die Daten lokal, falls wir sie später beim Klicken brauchen
+    private CardData _myCardData;
+
+    public void SetCardData(CardData data)
     {
-        // Wir abonnieren Änderungen. Wenn sich der Wert ändert, ruf UpdateVisuals auf.
-        netCardData.OnValueChanged += OnCardDataChanged;
-
-        // Einmal initial aufrufen, damit die Startwerte angezeigt werden
-        UpdateVisuals(netCardData.Value);
+        _myCardData = data;
+        UpdateVisuals(data);
     }
 
-    // Wir müssen uns wieder abmelden, wenn das Objekt zerstört wird (sauberer Code!)
-    public override void OnNetworkDespawn()
-    {
-        netCardData.OnValueChanged -= OnCardDataChanged;
-    }
-
-    // Das Event-System gibt uns den alten und den neuen Wert. Wir brauchen nur den neuen.
-    private void OnCardDataChanged(CardData oldData, CardData newData)
-    {
-        UpdateVisuals(newData);
-    }
-
-    // Hier hat sich kaum was geändert, außer dass wir "data" übergeben bekommen
     void UpdateVisuals(CardData data)
     {
+        // 1. Hintergrundfarbe setzen
         switch (data.color)
         {
-            case CardColor.Red: backgroundRenderer.color = Color.red; break;
-            case CardColor.Blue: backgroundRenderer.color = Color.blue; break;
-            case CardColor.Green: backgroundRenderer.color = Color.green; break;
-            case CardColor.Yellow: backgroundRenderer.color = Color.yellow; break;
-            case CardColor.Special: backgroundRenderer.color = Color.white; break;
-            default: backgroundRenderer.color = Color.gray; break; // Fallback
+            case CardColor.Red: backgroundRenderer.color = new Color(1f, 0.5f, 0.5f); break; // Helles Rot
+            case CardColor.Blue: backgroundRenderer.color = new Color(0.5f, 0.5f, 1f); break; // Helles Blau
+            case CardColor.Green: backgroundRenderer.color = new Color(0.5f, 1f, 0.5f); break; // Helles Grün
+            case CardColor.Yellow: backgroundRenderer.color = new Color(1f, 1f, 0.5f); break; // Helles Gelb
+            // FIX für Zauberer/Narr: Wir machen sie dunkler (grau), damit weißer Text lesbar ist
+            case CardColor.Special: backgroundRenderer.color = Color.darkGray; break;
+            default: backgroundRenderer.color = Color.white; break;
         }
 
-        if (data.value == CardValue.Wizard) valueText.text = "Z";
-        else if (data.value == CardValue.Jester) valueText.text = "N";
+        // 2. Text setzen
+        if (data.value == CardValue.Wizard)
+        {
+            valueText.text = "Z";
+            valueText.color = Color.yellow; // Zauberer stechen hervor
+        }
+        else if (data.value == CardValue.Jester)
+        {
+            valueText.text = "N";
+            valueText.color = Color.white;
+        }
         else
         {
             int number = (int)data.value - 1;
             valueText.text = number.ToString();
+            valueText.color = Color.black; // Zahlen in Schwarz für besseren Kontrast
         }
     }
 
-    // Die alte SetCardData brauchen wir eigentlich nicht mehr, 
-    // aber wir können sie drin lassen, falls wir es mal lokal testen wollen.
-    public void SetCardData(CardData data)
-    {
-        UpdateVisuals(data);
-        // Im Multiplayer nutzen wir das hier NICHT mehr direkt!
-    }
-
-    // Fix for CS1061: Add ShowCardBack method
     public void ShowCardBack()
     {
-        // Example implementation: Hide value and set background to a "back" sprite or color
-        if (backgroundRenderer != null)
-        {
-            // Set to a default back color (gray) or assign a back sprite if available
-            backgroundRenderer.color = Color.gray;
-        }
-        if (valueText != null)
-        {
-            valueText.text = string.Empty;
-        }
+        backgroundRenderer.color = Color.black; // Rückseite schwarz
+        valueText.text = ""; // Kein Text
     }
+    
 }
