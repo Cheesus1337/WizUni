@@ -108,6 +108,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CardDisplay
   backgroundRenderer: {fileID: 3378851969531940638}
   valueText: {fileID: 2906991003824018964}
+  handIndex: 0
+  cardBackSprite: {fileID: 4619586516584789706, guid: 33eaa1aafaed4d6479f635f2496a7914, type: 3}
+  defaultFrontSprite: {fileID: 0}
+  redCards:
+    name: 
+    numberCards: []
+    wizardSprite: {fileID: 0}
+    jesterSprite: {fileID: 0}
+  blueCards:
+    name: 
+    numberCards: []
+    wizardSprite: {fileID: 0}
+    jesterSprite: {fileID: 0}
+  greenCards:
+    name: 
+    numberCards: []
+    wizardSprite: {fileID: 0}
+    jesterSprite: {fileID: 0}
+  yellowCards:
+    name: 
+    numberCards: []
+    wizardSprite: {fileID: 0}
+    jesterSprite: {fileID: 0}
 --- !u!65 &347714289770018505
 BoxCollider:
   m_ObjectHideFlags: 0

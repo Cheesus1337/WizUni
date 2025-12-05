@@ -131,13 +131,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23de3cf07a45ee940b8b6ecc49e3d36c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardDisplay
-  ShowTopMostFoldoutHeaderGroup: 1
   backgroundRenderer: {fileID: 3378851969531940638}
   valueText: {fileID: 2906991003824018964}
-  netCardData:
-    m_InternalValue:
-      color: 0
-      value: 0
+  handIndex: 0
+  cardBackSprite: {fileID: 0}
+  cardFrontSprite: {fileID: 0}
 --- !u!1 &5240771295814250444
 GameObject:
   m_ObjectHideFlags: 0

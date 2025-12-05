@@ -15,8 +15,9 @@ public class PlayerHand : NetworkBehaviour
     private List<GameObject> spawnedCards = new List<GameObject>();
 
     // Einstellungen für den Tisch-Radius (Ellipse)
-    private float tableRadiusX = 6.0f; // Breite des Tisches
-    private float tableRadiusY = 3.5f; // Tiefe des Tisches
+    [Header("Tisch Einstellungen")]
+    public float tableRadiusX = 8.0f; // Standard erhöht (war 6.0)
+    public float tableRadiusY = 5.0f; // Standard erhöht (war 3.5)
 
     private void Awake()
     {
@@ -133,8 +134,10 @@ public class PlayerHand : NetworkBehaviour
         }
         spawnedCards.Clear();
 
-        // 2. Setup
-        float spacing = 2.3f;
+        // 2. Setup: Unterschiedliches Spacing für Mich vs. Gegner
+        // Wenn ich es bin: 2.3f (breit). Wenn Gegner: 1.0f (überlappend).
+        float spacing = IsOwner ? 2.3f : 1.0f;
+
         float totalWidth = 0f;
         if (handCards.Count > 1)
         {
@@ -148,18 +151,18 @@ public class PlayerHand : NetworkBehaviour
         {
             CardData data = handCards[i];
 
-            // --- ÄNDERUNG: Dynamischer Y-Offset ---
-            // Wenn der Spieler UNTEN ist (Y < 0), Karten ÜBER ihm (+2).
-            // Wenn der Spieler OBEN ist (Y > 0), Karten UNTER ihm (-2).
+            // Dynamischer Y-Offset (wie gehabt)
             float yOffset = (transform.position.y < 0) ? 2f : -2f;
 
-            // Position relativ zum Spieler berechnen
-            Vector3 spawnPos = transform.position + new Vector3(xOffset, yOffset, 0);
+            // --- NEU: Z-Offset für saubere Überlappung ---
+            // Wir ziehen jede Karte minimal näher zur Kamera (-0.1f * i).
+            // Dadurch liegt Karte 2 garantiert optisch VOR Karte 1.
+            float zOffset = -0.1f * i;
+
+            // Position relativ zum Spieler berechnen + Z-Offset
+            Vector3 spawnPos = transform.position + new Vector3(xOffset, yOffset, zOffset);
 
             GameObject newCard = Instantiate(cardPrefab, spawnPos, Quaternion.identity);
-
-            // Debugging
-            // Debug.Log($"Karte {i + 1}: Farbe={data.color}, Wert={data.value}");
 
             // Logik für Anzeige & Index
             var displayScript = newCard.GetComponent<CardDisplay>();
@@ -202,6 +205,8 @@ public class PlayerHand : NetworkBehaviour
                 }
             }
         }
+        // NUR ZUM TESTEN (später wieder löschen, spart Performance):
+        if (IsServer) UpdateTableLayout();
     }
 
     [ServerRpc]

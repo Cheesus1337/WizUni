@@ -13,6 +13,8 @@ public class TableManager : NetworkBehaviour
     // Referenz auf das visuelle Prefab (das dumme ohne NetworkObject)
     public GameObject cardPrefabVisual;
 
+    public GameObject tableVisual; // Das Tisch-Objekt (für spätere Erweiterungen)
+
     // Lokale Liste der gespawnten GameObjects (zum Löschen)
     private List<GameObject> spawnedVisuals = new List<GameObject>();
 
@@ -24,16 +26,31 @@ public class TableManager : NetworkBehaviour
 
         // Liste initialisieren
         playedCards = new NetworkList<CardData>();
+
+        // SICHERHEITSHALBER: Tisch am Anfang verstecken, 
+              if (tableVisual != null)
+        {
+            tableVisual.SetActive(false);
+        }
     }
 
     public override void OnNetworkSpawn()
     {
+
+        if (tableVisual != null)
+        {
+            tableVisual.SetActive(true);
+        }
         // Bei Änderungen: Visuals aktualisieren
         playedCards.OnListChanged += OnTableCardsChanged;
     }
 
     public override void OnNetworkDespawn()
     {
+        if (tableVisual != null)
+        {
+            tableVisual.SetActive(false);
+        }
         playedCards.OnListChanged -= OnTableCardsChanged;
     }
 
